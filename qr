@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lector QR - Single File</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{margin:0;background:#ffffff;color:#E6EEF8;display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px;min-height:100vh}
+    .card{background:#547e33;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(2,6,23,.6);max-width:780px;width:100%}
+    h1{margin:0;font-size:18px}
+    p{margin:8px 0 0 0;color:#AFC6E8;font-size:13px}
+    .controls{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    button,input[type=file]{background:#0B1224;color:#CFE0FF;border:0;padding:10px 12px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#122235}
+    #video{width:100%;max-height:420px;border-radius:8px;background:#000;object-fit:cover}
+    .result{margin-top:12px;padding:10px;border-radius:8px;background:#04b177;color:#E6F6FF;word-break:break-all}
+    .small{font-size:13px;color:#9FB6D8}
+    canvas.hidden{display:none}
+    .overlay{position:relative}
+    .box{position:absolute;left:0;top:0;pointer-events:none}
+    footer{margin-top:10px;color:#8EA7CD;font-size:13px}
+    
+    /* Estilos para la sección de análisis */
+    .analysis-section {
+      margin-top: 20px;
+      padding: 15px;
+      background: #04b177;
+      border-radius: 8px;
+    }
+    
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    
+    @media (max-width: 600px) {
+      .analysis-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .analysis-item {
+      background: #000000;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    
+    .analysis-label {
+      font-size: 12px;
+      color: #9FB6D8;
+      margin-bottom: 5px;
+    }
+    
+    .analysis-value {
+      color: #E6F6FF;
+      font-weight: 500;
+    }
+    
+    .ai-note {
+      margin-top: 15px;
+      padding: 12px;
+      background: #071A2B;
+      border-radius: 8px;
+      border-left: 3px solid #00FFAA;
+    }
+    
+    .ai-note-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .ai-icon {
+      color: #00FFAA;
+      font-weight: bold;
+    }
+    
+    .typing-indicator {
+      color: #9FB6D8;
+      font-style: italic;
+      padding: 5px 0;
+    }
+    
+    /* Estilos para la vista admin */
+    .admin-toggle-btn {
+      margin-top: 20px;
+      background: #0B1224;
+      color: #00FFAA;
+      border: 2px solid #00FFAA;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+    }
+    
+    .admin-section {
+      margin-top: 20px;
+      padding: 15px;
+      background: #0B1224;
+      border-radius: 8px;
+      border: 2px solid #00FFAA;
+      display: none;
+    }
+    
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .admin-title {
+      margin: 0;
+      color: #00FFAA;
+    }
+    
+    .admin-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    
+    @media (max-width: 600px) {
+      .admin-form {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .form-group {
+      margin-bottom: 10px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 5px;
+      color: #9FB6D8;
+      font-size: 13px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #122235;
+      background: #071A2B;
+      color: #E6F6FF;
+      box-sizing: border-box;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #00FFAA;
+    }
+    
+    .full-width {
+      grid-column: 1 / -1;
+    }
+    
+    .admin-data-display {
+      margin-top: 20px;
+      padding: 15px;
+      background: #071A2B;
+      border-radius: 8px;
+    }
+    
+    .data-item {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #122235;
+    }
+    
+    .data-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    
+    .data-label {
+      font-weight: bold;
+      color: #00FFAA;
+    }
+    
+    .data-value {
+      color: #E6F6FF;
+      margin-left: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Lector QR — Archivo único (HTML + JS)</h1>
+    <p class="small">Permite leer QR desde la cámara o cargando una imagen. Funciona en móviles y escritorios (necesita HTTPS o localhost para la cámara).</p>
+
+    <div class="controls">
+      <button id="startBtn">Iniciar cámara</button>
+      <button id="stopBtn" class="secondary" disabled>Detener cámara</button>
+      <label style="display:inline-flex;align-items:center;gap:8px">
+        <input id="fileInput" type="file" accept="image/*" style="display:none">
+        <button id="pickFileBtn" class="secondary">Cargar imagen</button>
+      </label>
+    </div>
+
+    <div class="overlay" style="margin-top:12px;">
+      <video id="video" playsinline></video>
+      <!-- canvas para dibujar el recuadro sobre el video -->
+      <canvas id="overlayCanvas" class="box"></canvas>
+    </div>
+
+    <canvas id="hiddenCanvas" class="hidden"></canvas>
+
+    <div id="result" class="result">Resultado: <em id="resultText">—</em></div>
+    
+    <!-- Sección de análisis con IA -->
+    <div class="analysis-section">
+      <h3>Análisis Inteligente del QR</h3>
+      <div class="analysis-grid">
+        <div class="analysis-item">
+          <div class="analysis-label">Categoría</div>
+          <div id="category" class="analysis-value">—</div>
+        </div>
+        <div class="analysis-item">
+          <div class="analysis-label">Subcategoría</div>
+          <div id="subcategory" class="analysis-value">—</div>
+        </div>
+        <div class="analysis-item">
+          <div class="analysis-label">Peso Estimado</div>
+          <div id="weight" class="analysis-value">—</div>
+        </div>
+        <div class="analysis-item">
+          <div class="analysis-label">Confianza</div>
+          <div id="confidence" class="analysis-value">—</div>
+        </div>
+      </div>
+      
+      <div class="ai-note">
+        <div class="ai-note-header">
+          <span class="ai-icon">🤖</span>
+          <strong>Nota Generada por IA</strong>
+        </div>
+        <div id="aiNote" class="analysis-value">Esperando análisis de contenido QR...</div>
+        <div id="typingIndicator" class="typing-indicator" style="display: none;">Generando análisis...</div>
+      </div>
+    </div>
+    
+    <!-- Botón para abrir la vista admin -->
+    <button class="admin-toggle-btn" id="adminToggleBtn">Vista Admin</button>
+    
+    <!-- Vista Admin (oculta por defecto) -->
+    <div class="admin-section" id="adminSection">
+      <div class="admin-header">
+        <h3 class="admin-title">Vista Admin</h3>
+      </div>
+      
+      <form class="admin-form" id="adminForm">
+        <div class="form-group">
+          <label class="form-label">Creado por:</label>
+          <input type="text" class="form-input" id="createdBy" placeholder="Nombre del creador">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Creado en:</label>
+          <input type="text" class="form-input" id="createdLocation" placeholder="Empresa o ciudad">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Usuario:</label>
+          <input type="text" class="form-input" id="userName" placeholder="Nombre del usuario">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Correo Electrónico:</label>
+          <input type="email" class="form-input" id="userEmail" placeholder="correo@ejemplo.com">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Categoría:</label>
+          <input type="text" class="form-input" id="adminCategory" placeholder="Categoría principal">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Subcategoría:</label>
+          <input type="text" class="form-input" id="adminSubcategory" placeholder="Subcategoría">
+        </div>
+        
+        <div class="form-group full-width">
+          <label class="form-label">Peso:</label>
+          <input type="text" class="form-input" id="adminWeight" placeholder="Peso estimado">
+        </div>
+      </form>
+      
+      <div class="admin-data-display" id="adminDataDisplay" style="display: none;">
+        <h4>Datos Registrados:</h4>
+        <div class="data-item">
+          <span class="data-label">Creado por:</span>
+          <span class="data-value" id="displayCreatedBy">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Creado en:</span>
+          <span class="data-value" id="displayCreatedLocation">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Usuario:</span>
+          <span class="data-value" id="displayUserName">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Correo Electrónico:</span>
+          <span class="data-value" id="displayUserEmail">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Categoría:</span>
+          <span class="data-value" id="displayAdminCategory">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Subcategoría:</span>
+          <span class="data-value" id="displayAdminSubcategory">-</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Peso:</span>
+          <span class="data-value" id="displayAdminWeight">-</span>
+        </div>
+      </div>
+    </div>
+    
+    <p class="small" style="margin-top:8px">Consejo: Si la cámara no inicia, revisa permisos o prueba cargando una imagen con la opción <strong>Cargar imagen</strong>.</p>
+  </div>
+
+  <footer>CREADO POR JHON CUASPA Y LAS NIÑAS </footer>
+
+  <!-- jsQR CDN (librería para decodificar QR desde ImageData) -->
+  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+
+  <script>
+    // Elementos DOM
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const fileInput = document.getElementById('fileInput');
+    const pickFileBtn = document.getElementById('pickFileBtn');
+    const resultText = document.getElementById('resultText');
+    const hiddenCanvas = document.getElementById('hiddenCanvas');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    
+    // Elementos de análisis
+    const categoryEl = document.getElementById('category');
+    const subcategoryEl = document.getElementById('subcategory');
+    const weightEl = document.getElementById('weight');
+    const confidenceEl = document.getElementById('confidence');
+    const aiNoteEl = document.getElementById('aiNote');
+    const typingIndicatorEl = document.getElementById('typingIndicator');
+    
+    // Elementos de la vista admin
+    const adminToggleBtn = document.getElementById('adminToggleBtn');
+    const adminSection = document.getElementById('adminSection');
+    const createdByInput = document.getElementById('createdBy');
+    const createdLocationInput = document.getElementById('createdLocation');
+    const userNameInput = document.getElementById('userName');
+    const userEmailInput = document.getElementById('userEmail');
+    const adminCategoryInput = document.getElementById('adminCategory');
+    const adminSubcategoryInput = document.getElementById('adminSubcategory');
+    const adminWeightInput = document.getElementById('adminWeight');
+    
+    const adminDataDisplay = document.getElementById('adminDataDisplay');
+    const displayCreatedBy = document.getElementById('displayCreatedBy');
+    const displayCreatedLocation = document.getElementById('displayCreatedLocation');
+    const displayUserName = document.getElementById('displayUserName');
+    const displayUserEmail = document.getElementById('displayUserEmail');
+    const displayAdminCategory = document.getElementById('displayAdminCategory');
+    const displayAdminSubcategory = document.getElementById('displayAdminSubcategory');
+    const displayAdminWeight = document.getElementById('displayAdminWeight');
+
+    let stream = null;
+    let rafId = null;
+    let lastQRContent = "";
+
+    // iniciar cámara
+    async function startCamera() {
+      try {
+        // pedir la mejor cámara trasera (para móviles)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        stopBtn.disabled = false;
+        startBtn.disabled = true;
+
+        // ajustar canvas al tamaño del video
+        overlayCanvas.width = video.videoWidth || 640;
+        overlayCanvas.height = video.videoHeight || 480;
+        hiddenCanvas.width = video.videoWidth || 640;
+        hiddenCanvas.height = video.videoHeight || 480;
+
+        scanLoop(); // iniciar bucle de escaneo
+      } catch (err) {
+        console.error("No se pudo acceder a la cámara:", err);
+        alert("Error: no se pudo acceder a la cámara. Revisa permisos o usa la opción 'Cargar imagen'.");
+      }
+    }
+
+    // detener cámara
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.pause();
+      video.srcObject = null;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      clearOverlay();
+    }
+
+    // dibuja recuadro cuando se detecta QR
+    function drawLine(ctx, begin, end) {
+      ctx.beginPath();
+      ctx.moveTo(begin.x, begin.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#00FFAA';
+      ctx.stroke();
+    }
+
+    function clearOverlay() {
+      const ctx = overlayCanvas.getContext('2d');
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+
+    // bucle que captura frames del video y utiliza jsQR para decodificar
+    function scanLoop() {
+      const hiddenCtx = hiddenCanvas.getContext('2d');
+      const overlayCtx = overlayCanvas.getContext('2d');
+
+      function loop() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          // escalar canvas al tamaño real del video mostrado
+          const w = video.videoWidth;
+          const h = video.videoHeight;
+          if (hiddenCanvas.width !== w || hiddenCanvas.height !== h) {
+            hiddenCanvas.width = overlayCanvas.width = w;
+            hiddenCanvas.height = overlayCanvas.height = h;
+          }
+
+          hiddenCtx.drawImage(video, 0, 0, w, h);
+          const imageData = hiddenCtx.getImageData(0, 0, w, h);
+
+          // llamar a jsQR
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "attemptBoth"
+          });
+
+          overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+          if (code) {
+            // dibujar contorno
+            drawLine(overlayCtx, code.location.topLeftCorner, code.location.topRightCorner);
+            drawLine(overlayCtx, code.location.topRightCorner, code.location.bottomRightCorner);
+            drawLine(overlayCtx, code.location.bottomRightCorner, code.location.bottomLeftCorner);
+            drawLine(overlayCtx, code.location.bottomLeftCorner, code.location.topLeftCorner);
+
+            // mostrar resultado
+            resultText.textContent = code.data;
+            
+            // Si el contenido del QR cambia, analizarlo con IA
+            if (code.data !== lastQRContent) {
+              lastQRContent = code.data;
+              analyzeQRContent(code.data);
+            }
+          } else {
+            // si no hay QR, mostrar guion
+            // resultText.textContent = '—';
+          }
+        }
+        rafId = requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    // decodificar una imagen cargada por el usuario
+    function decodeImageFile(file) {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        hiddenCanvas.width = w;
+        hiddenCanvas.height = h;
+        const ctx = hiddenCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+        if (code) {
+          resultText.textContent = code.data;
+          // mostrar caja en overlay con proporción (opcional)
+          overlayCanvas.width = w;
+          overlayCanvas.height = h;
+          const octx = overlayCanvas.getContext('2d');
+          octx.clearRect(0,0,w,h);
+          drawLine(octx, code.location.topLeftCorner, code.location.topRightCorner);
+          drawLine(octx, code.location.topRightCorner, code.location.bottomRightCorner);
+          drawLine(octx, code.location.bottomRightCorner, code.location.bottomLeftCorner);
+          drawLine(octx, code.location.bottomLeftCorner, code.location.topLeftCorner);
+          
+          // Analizar el contenido del QR
+          analyzeQRContent(code.data);
+        } else {
+          resultText.textContent = 'No se encontró código QR en la imagen.';
+          overlayCanvas.getContext('2d').clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+        }
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        alert("No se pudo cargar la imagen.");
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+
+    // Analizar contenido del QR con IA
+    function analyzeQRContent(content) {
+      // Mostrar indicador de carga
+      typingIndicatorEl.style.display = 'block';
+      aiNoteEl.textContent = '';
+      
+      // Simular procesamiento con delay
+      setTimeout(() => {
+        typingIndicatorEl.style.display = 'none';
+        
+        // Análisis basado en el contenido del QR
+        let analysis = analyzeContent(content);
+        
+        // Actualizar elementos de análisis
+        categoryEl.textContent = analysis.category;
+        subcategoryEl.textContent = analysis.subcategory;
+        weightEl.textContent = analysis.weight;
+        confidenceEl.textContent = analysis.confidence;
+        aiNoteEl.textContent = analysis.note;
+        
+        // Actualizar campos admin con los valores del análisis
+        adminCategoryInput.value = analysis.category;
+        adminSubcategoryInput.value = analysis.subcategory;
+        adminWeightInput.value = analysis.weight;
+      }, 1500);
+    }
+
+    // Función de análisis de contenido (simulación de IA)
+    function analyzeContent(content) {
+      let category = "Desconocido";
+      let subcategory = "General";
+      let weight = "0.1 KB";
+      let confidence = "85%";
+      let note = "No se pudo generar una nota detallada para este contenido.";
+      
+      // Calcular peso aproximado
+      const contentLength = content.length;
+      weight = `${(contentLength / 1024).toFixed(2)} KB`;
+      
+      // Análisis de contenido
+      if (content.startsWith('http')) {
+        category = "Enlace Web";
+        if (content.includes('whatsapp.com') || content.includes('wa.me')) {
+          subcategory = "Red Social";
+          note = "Este código QR contiene un enlace a WhatsApp. Es probablemente un contacto o grupo de WhatsApp. Puedes abrirlo directamente en la aplicación de WhatsApp.";
+        } else if (content.includes('youtube.com') || content.includes('youtu.be')) {
+          subcategory = "Video";
+          note = "Este código QR lleva a un video de YouTube. Puedes escanearlo para acceder directamente al contenido multimedia.";
+        } else if (content.includes('facebook.com')) {
+          subcategory = "Red Social";
+          note = "Este código QR dirige a una página de Facebook. Puede ser útil para seguir perfiles o páginas de interés.";
+        } else if (content.includes('linkedin.com')) {
+          subcategory = "Red Profesional";
+          note = "Este código QR lleva a un perfil o página de LinkedIn. Ideal para conexiones profesionales y networking.";
+        } else {
+          subcategory = "Sitio Web";
+          note = "Este código QR contiene un enlace web general. Escanéalo para acceder al sitio directamente desde tu dispositivo.";
+        }
+      } else if (content.startsWith('mailto:')) {
+        category = "Contacto";
+        subcategory = "Correo Electrónico";
+        note = "Este código QR contiene una dirección de correo electrónico. Escanéalo para abrir automáticamente tu cliente de correo con una nueva conversación.";
+      } else if (content.startsWith('tel:')) {
+        category = "Contacto";
+        subcategory = "Teléfono";
+        note = "Este código QR contiene un número de teléfono. Escanéalo para llamar directamente desde tu dispositivo móvil.";
+      } else if (content.startsWith('sms:')) {
+        category = "Contacto";
+        subcategory = "Mensaje de Texto";
+        note = "Este código QR contiene un número para enviar SMS. Escanéalo para abrir la aplicación de mensajería con el número prellenado.";
+      } else if (content.startsWith('geo:')) {
+        category = "Ubicación";
+        subcategory = "Coordenadas GPS";
+        note = "Este código QR contiene coordenadas geográficas. Puedes usarlo para navegar a una ubicación específica en mapas.";
+      } else if (content.startsWith('WIFI:')) {
+        category = "Conectividad";
+        subcategory = "Configuración WiFi";
+        note = "Este código QR contiene credenciales de red WiFi. Escanéalo para conectarte automáticamente a la red sin necesidad de ingresar la contraseña.";
+      } else if (content.match(/^\d+$/)) {
+        category = "Identificador";
+        subcategory = "Número";
+        note = "Este código QR contiene solo números. Podría ser un código de producto, identificador único o número de serie.";
+      } else if (content.includes('{') && content.includes('}')) {
+        category = "Datos Estructurados";
+        subcategory = "JSON";
+        note = "Este código QR contiene datos estructurados en formato JSON. Puede ser utilizado por aplicaciones para procesar información compleja.";
+      } else if (content.length > 100) {
+        category = "Texto Largo";
+        subcategory = "Documento";
+        note = "Este código QR contiene un texto extenso. Podría ser un documento, artículo o información detallada que se puede acceder rápidamente.";
+      } else {
+        category = "Texto";
+        subcategory = "General";
+        note = "Este código QR contiene texto plano. Es una forma sencilla de compartir información breve de manera rápida.";
+      }
+      
+      // Ajustar confianza basada en la complejidad del análisis
+      if (content.length > 50) {
+        confidence = "92%";
+      } else if (content.startsWith('http') && content.includes('.')) {
+        confidence = "95%";
+      }
+      
+      return {
+        category,
+        subcategory,
+        weight,
+        confidence,
+        note
+      };
+    }
+
+    // Toggle para mostrar/ocultar la vista admin
+    adminToggleBtn.addEventListener('click', () => {
+      if (adminSection.style.display === 'block') {
+        adminSection.style.display = 'none';
+        adminToggleBtn.textContent = 'Vista Admin';
+      } else {
+        adminSection.style.display = 'block';
+        adminToggleBtn.textContent = 'Cerrar Vista Admin';
+      }
+    });
+
+    // Mostrar datos admin cuando se llenan todos los campos
+    function updateAdminDisplay() {
+      if (createdByInput.value && createdLocationInput.value && userNameInput.value && 
+          userEmailInput.value && adminCategoryInput.value && adminSubcategoryInput.value && adminWeightInput.value) {
+        
+        displayCreatedBy.textContent = createdByInput.value;
+        displayCreatedLocation.textContent = createdLocationInput.value;
+        displayUserName.textContent = userNameInput.value;
+        displayUserEmail.textContent = userEmailInput.value;
+        displayAdminCategory.textContent = adminCategoryInput.value;
+        displayAdminSubcategory.textContent = adminSubcategoryInput.value;
+        displayAdminWeight.textContent = adminWeightInput.value;
+        
+        adminDataDisplay.style.display = 'block';
+      } else {
+        adminDataDisplay.style.display = 'none';
+      }
+    }
+
+    // Event listeners para los campos admin
+    createdByInput.addEventListener('input', updateAdminDisplay);
+    createdLocationInput.addEventListener('input', updateAdminDisplay);
+    userNameInput.addEventListener('input', updateAdminDisplay);
+    userEmailInput.addEventListener('input', updateAdminDisplay);
+    adminCategoryInput.addEventListener('input', updateAdminDisplay);
+    adminSubcategoryInput.addEventListener('input', updateAdminDisplay);
+    adminWeightInput.addEventListener('input', updateAdminDisplay);
+
+    // eventos UI
+    startBtn.addEventListener('click', () => startCamera());
+    stopBtn.addEventListener('click', () => stopCamera());
+
+    pickFileBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (f) decodeImageFile(f);
+      // restablecer input para permitir recargas del mismo archivo
+      fileInput.value = '';
+    });
+
+    // cerrar la cámara si el usuario abandona la página
+    window.addEventListener('beforeunload', stopCamera);
+
+    // detectar soporte
+    if (!('mediaDevices' in navigator) || !('getUserMedia' in navigator.mediaDevices)) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Cámara no soportada";
+    }
+    
+    // Inicializar con valores por defecto
+    categoryEl.textContent = "Esperando QR...";
+    subcategoryEl.textContent = "Esperando QR...";
+    weightEl.textContent = "0 KB";
+    confidenceEl.textContent = "0%";
+    aiNoteEl.textContent = "Escanea un código QR para obtener un análisis inteligente de su contenido.";
+  </script>
+</body>
+</html>
